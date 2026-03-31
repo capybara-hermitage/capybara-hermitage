@@ -1,0 +1,1019 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>カピバラの庵 — 重力から解放される場所</title>
+    <meta name="description" content="ゲームや社会の重力に疲れた魂が、静かな川辺でカピバラとともに安らぐ場所。">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Noto Serif JP', serif; width: 100vw; height: 100vh; overflow: hidden; background: #0a1409; cursor: auto; }
+        canvas#bg { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; }
+
+        /* HEADER */
+        #header { position: fixed; top: 0; left: 0; right: 0; z-index: 20; padding: 1.4rem 1.5rem 1.8rem; background: linear-gradient(to bottom, rgba(4,14,5,0.94) 0%, transparent 100%); text-align: center; pointer-events: none; }
+        #header h1 { font-size: clamp(1.6rem, 5.5vw, 2.2rem); font-weight: 700; color: #e2eee2; letter-spacing: 0.2em; text-shadow: 0 2px 14px rgba(0,0,0,0.85), 0 0 36px rgba(70,180,80,0.28); margin-bottom: 0.35rem; }
+        #header p { font-size: clamp(0.82rem, 2.4vw, 1rem); color: rgba(195,235,200,0.72); letter-spacing: 0.15em; text-shadow: 0 1px 6px rgba(0,0,0,0.72); }
+
+        /* SOUND TOGGLE (V3 Redesign) */
+        #sound-toggle { position: fixed; top: 1.5rem; right: 1.8rem; z-index: 30; text-align: center; cursor: pointer; user-select: none; transition: transform 0.2s; }
+        #sound-toggle:hover { transform: scale(1.08); }
+        .sound-icon { font-size: 2.2rem; color: #e0f2e2; text-shadow: 0 2px 8px rgba(0,0,0,0.6); line-height: 1; position: relative; }
+        .sound-text { font-size: 0.8rem; color: #b4deb8; letter-spacing: 0.1em; margin-top: 0.2rem; }
+        #sound-toggle.muted .sound-icon::after { content: '×'; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: #e86464; font-size: 3rem; font-weight: 300; text-shadow: 0 0 4px rgba(0,0,0,0.8); }
+
+        /* SPRING (独白の泉 P4 - Sanctuary) */
+        #spring-wrap { position: fixed; z-index: 8; left: 50%; transform: translateX(-50%); bottom: 24%; display: flex; flex-direction: column; align-items: center; gap: 0.4rem; pointer-events: none; filter: drop-shadow(0 0 15px rgba(100,200,150,0)); transition: filter 1s ease; }
+        #spring-wrap.pulse-glow { filter: drop-shadow(0 0 25px rgba(120,240,160,0.6)); animation: springFloat 4s ease-in-out infinite, springPulse 2.5s ease-in-out infinite; }
+        @keyframes springFloat { 0%,100% { transform: translateX(-50%) translateY(0); } 50% { transform: translateX(-50%) translateY(-5px); } }
+        @keyframes springPulse { 0%,100% { filter: drop-shadow(0 0 10px rgba(100,200,150,0.4)); } 50% { filter: drop-shadow(0 0 35px rgba(160,255,200,0.8)); } }
+        canvas#spring-canvas { width: min(35vw, 200px); height: min(15vw, 85px); border-radius: 50%; }
+
+        /* CAPYBARA */
+        #capy-wrap { position: fixed; z-index: 5; left: -100%; bottom: 40%; transform: translateX(-50%); opacity: 0; transition: opacity 5s ease, left 0.1s, bottom 0.1s; } /* 5s fade */
+        #capy-wrap.visible { opacity: 1; }
+        #capy-wrap.quick-fade { transition: opacity 2s ease; } /* internal state change fade */
+        
+        /* Ground Shadow */
+        #capy-shadow { position: absolute; bottom: 0; left: 50%; transform: translateX(-50%) translateY(30%); width: 70%; height: 25px; background: radial-gradient(ellipse at center, rgba(10,24,14,0.6) 0%, transparent 70%); z-index: -1; opacity: 0; transition: opacity 2s; }
+        #capy-wrap.on-land.visible #capy-shadow { opacity: 1; }
+
+        #capy-img { width: min(48vw, 285px); display: block; filter: drop-shadow(0 8px 15px rgba(0,0,0,0.3)); pointer-events: none; }
+        #body-hitbox { position: absolute; inset: 0; z-index: 10; cursor: pointer; }
+        #snout-hitbox { position: absolute; left: 0; top: 30%; width: 40%; height: 45%; z-index: 11; cursor: pointer; }
+        
+        body.interacting #body-hitbox, body.interacting #snout-hitbox { cursor: default; } /* Cooldown cursor */
+
+        /* Swimming mask */
+        #capy-wrap.swimming #capy-img { mask-image: linear-gradient(to bottom, black 65%, rgba(0,0,0,0.4) 85%, transparent 100%); -webkit-mask-image: linear-gradient(to bottom, black 65%, rgba(0,0,0,0.4) 85%, transparent 100%); filter: drop-shadow(0 4px 8px rgba(0,0,0,0.2)) brightness(0.9); }
+        
+        /* Reaction Flash (Restored & Improved) */
+        #react-flash { position: absolute; inset: -40%; background: radial-gradient(circle, rgba(200,255,220,0.55) 0%, transparent 60%); opacity: 0; pointer-events: none; transform: scale(0.5); z-index: 12; }
+        #react-flash.fire { animation: reactionFlash 0.8s ease-out forwards; }
+        @keyframes reactionFlash { 0% { opacity: 0; transform: scale(0.3); } 30% { opacity: 1; transform: scale(1.1); } 100% { opacity: 0; transform: scale(1.5); } }
+
+        /* Enhanced Breathing & Scale fixing for Sleep */
+        #capy-wrap.is-sleep #capy-img { transform: scale(0.82); transform-origin: bottom center; } /* Reduced sleep size naturally */
+        #capy-wrap:not(.swimming):not(.is-sleep).visible #capy-img { transform-origin: center bottom; animation: capyBreathe 4s ease-in-out infinite; }
+        #capy-wrap.is-sleep.visible #capy-img { transform-origin: center bottom; animation: capyBreatheSleep 5s ease-in-out infinite; }
+        
+        @keyframes capyBreathe { 0%, 100% { transform: scale(1) translateY(0) rotate(0deg); } 50% { transform: scale(1.02, 0.98) translateY(2px) rotate(0.8deg); } }
+        @keyframes capyBreatheSleep { 0%, 100% { transform: scale(0.82) translateY(0) rotate(0deg); } 50% { transform: scale(0.83, 0.81) translateY(1px) rotate(0.5deg); } }
+
+        /* BUBBLE */
+        #bubble { position: fixed; z-index: 6; font-size: 0.85rem; line-height: 1.5; background: rgba(8,26,10,0.78); backdrop-filter: blur(8px); border: 1px solid rgba(140,210,140,0.22); color: #c2e8c4; padding: 0.4rem 1rem; border-radius: 999px; opacity: 0; pointer-events: none; white-space: nowrap; transition: opacity 1.5s ease; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+        #bubble.visible { opacity: 1; }
+
+        /* FORM */
+        #ui { position: fixed; bottom: 0; left: 0; right: 0; z-index: 20; padding: 1.1rem 1.2rem 2.5rem; background: linear-gradient(to top, rgba(3,12,4,0.97) 0%, rgba(3,12,4,0.74) 60%, transparent 100%); display: flex; flex-direction: column; align-items: center; gap: 0.8rem; pointer-events: auto; }
+        #confess-area { width: 100%; max-width: 520px; background: rgba(255,255,255,0.04); backdrop-filter: blur(16px); border: 1px solid rgba(118,200,138,0.2); border-radius: 18px; padding: 1.2rem; color: #d6ead6; font-family: 'Noto Serif JP', serif; font-size: clamp(1rem, 2.8vw, 1.15rem); line-height: 1.8; letter-spacing: 0.15em; resize: none; min-height: 110px; outline: none; overflow-y: auto; scrollbar-width: none; transition: border-color 0.4s, background 0.4s, box-shadow 0.4s; }
+        #confess-area::-webkit-scrollbar { display: none; }
+        #confess-area::placeholder { color: rgba(140,200,150,0.38); }
+        #confess-area:focus { border-color: rgba(140,220,160,0.5); background: rgba(255,255,255,0.08); box-shadow: 0 0 20px rgba(120,220,150,0.15); }
+        #confess-area.pulse-border { animation: borderPulse 3s infinite; }
+        @keyframes borderPulse { 0%,100% { border-color: rgba(118,200,138,0.2); box-shadow: 0 0 0 transparent; } 50% { border-color: rgba(180,240,190,0.55); box-shadow: 0 0 15px rgba(140,230,160,0.2); } }
+        #send-btn { background: linear-gradient(135deg, #2b5c30, #488f4d); color: #e8f5e9; border: none; border-radius: 999px; padding: 0.85rem 3rem; font-family: 'Noto Serif JP', serif; font-size: clamp(1.1rem, 2.5vw, 1.2rem); letter-spacing: 0.22em; cursor: pointer; box-shadow: 0 4px 24px rgba(48,160,68,0.2); transition: transform 0.15s, box-shadow 0.15s; }
+        #send-btn:active { transform: scale(0.95); }
+        #send-btn:disabled { opacity: 0.4; cursor: default; }
+
+        /* DEBUG PANEL */
+        #debug-toggle { position: fixed; bottom: 10px; left: 10px; z-index: 100; font-size: 0.8rem; color: rgba(255,255,255,0.2); cursor: pointer; user-select: none; }
+        #debug-panel { position: fixed; bottom: 30px; left: 10px; z-index: 100; background: rgba(0,0,0,0.8); border: 1px solid #444; padding: 10px; color: #0f0; font-family: monospace; font-size: 0.75rem; display: none; pointer-events: auto; }
+        #debug-panel.show { display: block; }
+        #debug-panel button { margin: 2px; font-size: 0.7rem; background: #222; color: #0f0; border: 1px solid #0f0; cursor: pointer; }
+
+        .float-away { animation: floatMsg 1.6s ease-out forwards !important; }
+        @keyframes floatMsg { 0% { opacity: 1; transform: translateY(0) scale(1); } 60% { opacity: 0.15; transform: translateY(-60px) scale(0.95); } 100% { opacity: 0; transform: translateY(-110px) scale(0.9); } }
+        .ripple-ring { position: fixed; border-radius: 50%; border: 2px solid rgba(130,230,170,0.45); pointer-events: none; z-index: 9; animation: rippleExp 1.8s ease-out forwards; }
+        @keyframes rippleExp { from{transform:scale(0);opacity:1} to{transform:scale(5);opacity:0} }
+
+        /* QUOTES / NOTIFICATIONS */
+        #quote-overlay { position: fixed; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; padding: 2rem; pointer-events: none; opacity: 0; transition: opacity 0.7s ease; }
+        #quote-overlay.visible { opacity: 1; pointer-events: auto; }
+        #quote-box { background: rgba(4,20,6,0.9); backdrop-filter: blur(22px); border: 1px solid rgba(98,188,118,0.26); border-radius: 22px; padding: 2.5rem 2rem; max-width: 380px; text-align: center; color: #c4e8c8; font-size: clamp(1.05rem, 2.5vw, 1.15rem); line-height: 2; letter-spacing: 0.15em; box-shadow: 0 12px 52px rgba(0,0,0,0.68); }
+        #quote-box .capy-emoji { font-size: 2.2rem; display: block; margin-bottom: 0.8rem; }
+        #quote-close { margin-top: 1.8rem; font-size: 0.85rem; color: rgba(148,200,158,0.62); letter-spacing: 0.15em; cursor: pointer; transition: color 0.2s; }
+        #quote-close:hover { color: #8cd29f; }
+
+        #reply-notif { position: fixed; bottom: 0; left: 0; right: 0; z-index: 50; background: linear-gradient(135deg, rgba(3,20,5,0.97), rgba(18,48,20,0.97)); backdrop-filter: blur(20px); border-top: 1px solid rgba(96,200,118,0.28); padding: 1.4rem 1.5rem 2.2rem; display: flex; flex-direction: column; gap: 0.8rem; transform: translateY(100%); transition: transform 0.6s cubic-bezier(.25,.46,.45,.94); }
+        #reply-notif.visible { transform: translateY(0); }
+        #reply-notif-header { display: flex; align-items: center; gap: 0.55rem; color: #a4d8a8; font-size: 0.95rem; letter-spacing: 0.12em; }
+        .notif-dot { width: 8px; height: 8px; background: #60d880; border-radius: 50%; box-shadow: 0 0 8px #60d880; animation: pulse 2s infinite; }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.38} }
+        #reply-text-box { background: rgba(255,255,255,0.038); border: 1px solid rgba(96,200,118,0.18); border-radius: 12px; padding: 1.2rem; color: #cce8cc; font-size: 1.05rem; line-height: 1.8; letter-spacing: 0.1em; max-height: 140px; overflow-y: auto; }
+        #reply-notif-close { align-self: center; font-size: 0.85rem; color: rgba(128,190,138,0.58); letter-spacing: 0.15em; cursor: pointer; }
+
+        /* Weather Layer */
+        #weather-layer { position: fixed; inset: 0; z-index: 1; pointer-events: none; }
+        .particle { position: absolute; background: rgba(195,255,205,0.38); border-radius: 50%; }
+        .raindrop { position: absolute; background: rgba(180,220,240,0.4); width: 1.5px; height: 35px; transform: rotate(10deg); }
+        @keyframes rainFall { 0%{transform:translateY(-10vh) rotate(10deg); opacity:0;} 5%{opacity:1;} 80%{opacity:1;} 100%{transform:translateY(120vh) translateX(-10vw) rotate(10deg); opacity:0;} }
+
+        @keyframes leafPulse {
+          0%, 100% { filter: drop-shadow(0 0 8px rgba(100,220,120,0.5)); }
+          50%       { filter: drop-shadow(0 0 20px rgba(100,220,120,0.9)); }
+        }
+    </style>
+</head>
+<body>
+
+<canvas id="bg"></canvas>
+<div id="weather-layer"></div>
+
+<div id="header">
+    <h1>カピバラの庵</h1>
+    <p>重力から逃れた魂が宿る静かな水辺</p>
+</div>
+
+<!-- V3 Sound Toggle -->
+<div id="sound-toggle" class="muted" title="サウンド切替">
+    <div class="sound-icon">♪</div>
+    <div class="sound-text">Off</div>
+</div>
+
+<div id="spring-wrap" class="pulse-glow">
+    <canvas id="spring-canvas" width="200" height="85"></canvas>
+</div>
+
+<div id="capy-wrap">
+    <div id="react-flash"></div>
+    <div id="capy-shadow"></div>
+    <img id="capy-img" src="" alt="カピバラ" draggable="false">
+    <div id="body-hitbox"></div>
+    <div id="snout-hitbox"></div>
+</div>
+
+<div id="bubble"></div>
+
+<div id="ui">
+    <div style="width:100%;max-width:520px;">
+      <input id="visitor-name" type="text"
+        placeholder="名前を残す（任意）"
+        style="width:100%;background:rgba(255,255,255,0.04);
+               border:1px solid rgba(118,200,138,0.15);border-radius:10px;
+               padding:0.6rem 1rem;color:#a8c8a8;
+               font-family:'Noto Serif JP',serif;font-size:0.9rem;
+               outline:none;letter-spacing:0.1em;">
+      <p style="font-size:0.75rem;color:rgba(140,190,140,0.5);
+                margin-top:0.3rem;letter-spacing:0.1em;padding-left:0.5rem;">
+        返事が届いたとき、あなただと分かるように。もちろん、他のことには使わないよ。
+      </p>
+    </div>
+    <textarea id="confess-area" class="pulse-border"
+        placeholder="ゲームで負けた。誰もわかってくれない。&#10;生きているのが重い。&#10;なんでも、泉に流していい。"></textarea>
+    <button id="send-btn">泉に流す</button>
+</div>
+
+<div id="quote-overlay"><div id="quote-box"><span class="capy-emoji">🌿</span><p id="quote-text"></p><div id="quote-close" role="button" tabindex="0">— そっと目を閉じよう —</div></div></div>
+<div id="reply-notif"><div id="reply-notif-header"><div class="notif-dot"></div><span>庵の主から言葉が届いた</span></div><div id="reply-text-box"></div><div id="reply-notif-close" role="button" tabindex="0">— 受け取った —</div></div>
+<div id="toast" style="display:none;"></div>
+
+<!-- Render Leaf Mailbox -->
+<div id="leaf-mailbox" style="position:fixed; z-index:15; left:50%; transform:translateX(-50%); bottom:calc(24% + 90px); display:none; flex-direction:column; align-items:center; cursor:pointer; pointer-events:auto;">
+  <div id="leaf-icon" style="font-size:2.5rem; filter:drop-shadow(0 0 12px rgba(100,220,120,0.8)); animation:leafPulse 2s ease-in-out infinite;">🍃</div>
+  <div style="font-size:0.7rem;color:rgba(160,230,160,0.8);letter-spacing:0.1em;margin-top:0.2rem;">返事がきたよ</div>
+</div>
+
+<div id="leaf-modal" style="display:none; position:fixed; inset:0; z-index:50; background:rgba(0,0,0,0.6); align-items:center; justify-content:center; padding:1.5rem;">
+  <div style="background:rgba(4,20,6,0.95);backdrop-filter:blur(20px); border:1px solid rgba(98,188,118,0.3);border-radius:20px; padding:2rem;max-width:400px;width:100%;color:#c4e8c8;">
+    <div style="font-size:0.75rem;color:rgba(140,190,140,0.6);margin-bottom:0.8rem;letter-spacing:0.1em;">
+      <span id="leaf-reply-from">カピバラより</span>
+    </div>
+    <div id="leaf-reply-text" style="font-size:1rem;line-height:1.8;letter-spacing:0.1em;"></div>
+    <div id="leaf-close" style="text-align:center;margin-top:1.5rem; font-size:0.85rem;color:rgba(128,190,138,0.6);cursor:pointer;letter-spacing:0.15em;">
+      — 受け取った —
+    </div>
+  </div>
+</div>
+
+<div id="debug-toggle">[D]</div>
+<div id="debug-panel">
+    <div>State: <span id="dbg-st"></span></div>
+    <div>Env: <span id="dbg-env"></span></div>
+    <div>Time in Scene: <span id="dbg-tm"></span>s</div>
+    <hr>
+    <button onclick="EnvSys.nextScene()">Force Next Scene</button>
+    <button onclick="forceBrotherMode()">Spawn Brother</button>
+    <button onclick="clearTimeout(stateTimer); decideNextBehavior()">Force Move</button>
+</div>
+
+<script>
+// ─── バックエンド設定 ───
+const API_BASE = 'https://capybara-hermitage.onrender.com';
+
+// browserToken（匿名ID）の初期化
+let browserToken = localStorage.getItem('capy_token');
+if (!browserToken) {
+  browserToken = 'capy_' + Math.random().toString(36).slice(2) + Date.now();
+  localStorage.setItem('capy_token', browserToken);
+}
+
+const savedName = localStorage.getItem('capy_name');
+if (savedName) document.getElementById('visitor-name').value = savedName;
+document.getElementById('visitor-name').addEventListener('change', (e) => {
+  localStorage.setItem('capy_name', e.target.value.trim());
+});
+
+/* ══════════════════════════════════════
+   0. AUDIO ENGINE (Hybrid Strategy V3)
+══════════════════════════════════════ */
+const AudioSys = {
+    ctx: null, masterGain: null, filter: null, ambientAudio: null, ambientGain: null,
+    isMuted: true,
+    swimOsc: null, swimGain: null, swimInterval: null,
+    init() {
+        if(this.ctx) return;
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        this.ctx = new AudioContext();
+        
+        this.masterGain = this.ctx.createGain();
+        this.masterGain.gain.value = 0.4; // SE Base
+        this.masterGain.connect(this.ctx.destination);
+
+        // Filter for rain masking
+        this.filter = this.ctx.createBiquadFilter();
+        this.filter.type = 'lowpass';
+        this.filter.frequency.value = 24000; // open by default
+        this.filter.connect(this.masterGain);
+
+        this.ambientGain = this.ctx.createGain();
+        this.ambientGain.gain.value = 0.0; // Fade in later
+        this.ambientGain.connect(this.filter);
+
+        this.ambientAudio = new Audio();
+        this.ambientAudio.loop = true;
+        this.ambientAudio.crossOrigin = "anonymous";
+        
+        try {
+            const track = this.ctx.createMediaElementSource(this.ambientAudio);
+            track.connect(this.ambientGain);
+        } catch(e) { console.warn("Audio source setup failed (expected if CORS blocks local).", e); }
+    },
+    toggle() {
+        this.isMuted = !this.isMuted;
+        const btn = document.getElementById('sound-toggle');
+        btn.classList.toggle('muted', this.isMuted);
+        btn.querySelector('.sound-text').textContent = this.isMuted ? 'Off' : 'On';
+        
+        if(!this.isMuted) {
+            this.init();
+            if(this.ctx.state === 'suspended') this.ctx.resume();
+            
+            // Dummy playback attempt for missing mp3s
+            this.ambientAudio.src = `assets/sounds/ambient/${EnvSys.currentAmbiID}.mp3`;
+            this.ambientAudio.play().catch(e => console.warn("Ambient not found (as designed):", e));
+            this.fadeAmbient(0.2, 2); // default amb vol
+        } else {
+            this.ambientAudio.pause();
+        }
+    },
+    fadeAmbient(targetVol, duration) {
+        if(!this.ctx || this.isMuted) return;
+        this.ambientGain.gain.cancelScheduledValues(this.ctx.currentTime);
+        this.ambientGain.gain.linearRampToValueAtTime(targetVol, this.ctx.currentTime + duration);
+    },
+    switchAmbient(newID) {
+        if(!this.ctx || this.isMuted) return;
+        this.fadeAmbient(0, 5); // Crossfade out
+        setTimeout(() => {
+            if(this.isMuted) return;
+            this.ambientAudio.src = `assets/sounds/ambient/${newID}.mp3`;
+            this.ambientAudio.play().catch(e => console.warn("Wait for ambient file:", newID));
+            this.fadeAmbient(0.2, 5); // Crossfade in
+        }, 5000);
+    },
+    setWeatherFilter(isRain) {
+        if(!this.ctx) return;
+        const tgtFreq = isRain ? 800 : 24000;
+        this.filter.frequency.cancelScheduledValues(this.ctx.currentTime);
+        this.filter.frequency.exponentialRampToValueAtTime(tgtFreq, this.ctx.currentTime + 3);
+    },
+    startSwimSE() {
+        if(this.isMuted || !this.ctx) return;
+        this.stopSwimSE();
+        this.swimGain = this.ctx.createGain();
+        this.swimGain.gain.value = 0;
+        this.swimGain.connect(this.masterGain);
+        
+        this.swimOsc = this.ctx.createOscillator();
+        this.swimOsc.type = 'triangle';
+        this.swimOsc.frequency.value = 250; // Higher freq for audibility
+        
+        let lpf = this.ctx.createBiquadFilter();
+        lpf.type = 'lowpass'; lpf.frequency.value = 600;
+        
+        this.swimOsc.connect(this.swimGain);
+        this.swimGain.connect(lpf);
+        lpf.connect(this.masterGain);
+        
+        this.swimOsc.start();
+        
+        let phase = 0;
+        this.swimInterval = setInterval(() => {
+            if(!this.ctx) return;
+            let now = this.ctx.currentTime;
+            this.swimOsc.frequency.linearRampToValueAtTime(250 + (phase%2===0?25:-15), now + 0.5);
+            this.swimGain.gain.setValueAtTime(0, now);
+            this.swimGain.gain.linearRampToValueAtTime(0.12, now + 0.3); // louder tapun
+            this.swimGain.gain.linearRampToValueAtTime(0, now + 0.8);
+            phase++;
+        }, 1800);
+    },
+    stopSwimSE() {
+        if(this.swimInterval) clearInterval(this.swimInterval);
+        if(this.swimOsc) { this.swimOsc.stop(); this.swimOsc = null; }
+        if(this.swimGain) { this.swimGain.disconnect(); this.swimGain = null; }
+    },
+    playSE(type) {
+        if(this.isMuted || !this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.connect(gain); gain.connect(this.filter);
+
+        const now = this.ctx.currentTime;
+        switch(type) {
+            case 'open_eye': // SE_01 (Pin...) Clear, short bell
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(1300, now);
+                gain.gain.setValueAtTime(0, now);
+                gain.gain.linearRampToValueAtTime(0.35, now + 0.02);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 1.0);
+                osc.start(now); osc.stop(now + 1.0);
+                break;
+            case 'blink': // SE_02 (Pasat) 0.1s white noise approx
+                osc.type = 'triangle'; // fallback for noise
+                osc.frequency.setValueAtTime(100, now);
+                gain.gain.setValueAtTime(0, now);
+                gain.gain.linearRampToValueAtTime(0.05, now + 0.02);
+                gain.gain.linearRampToValueAtTime(0, now + 0.1);
+                osc.start(now); osc.stop(now + 0.1);
+                break;
+            case 'brother': // SE_03 (Happy Arpeggio)
+                osc.disconnect(); gain.disconnect();
+                const fm = [523.25, 659.25, 783.99, 1046.50]; // C Major arpeggio
+                fm.forEach((f, i) => {
+                    let o = this.ctx.createOscillator();
+                    let g = this.ctx.createGain();
+                    o.type = 'sine';
+                    o.frequency.value = f;
+                    o.connect(g); g.connect(this.masterGain);
+                    let t = now + i * 0.12;
+                    g.gain.setValueAtTime(0, t);
+                    g.gain.linearRampToValueAtTime(0.2, t + 0.05);
+                    g.gain.exponentialRampToValueAtTime(0.001, t + 2.5);
+                    o.start(t); o.stop(t + 2.5);
+                });
+                break;
+            case 'msg': // SE_04 (Shishi-odoshi)
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(400, now);
+                osc.frequency.exponentialRampToValueAtTime(100, now + 0.1);
+                gain.gain.setValueAtTime(0, now);
+                gain.gain.linearRampToValueAtTime(0.4, now + 0.01);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+                osc.start(now); osc.stop(now + 0.5);
+                break;
+        }
+    }
+};
+document.getElementById('sound-toggle').addEventListener('click', () => AudioSys.toggle());
+
+/* ══════════════════════════════════════
+   1. ENVIRONMENT MATRIX (V3 - 3 min scenes)
+══════════════════════════════════════ */
+const bgCvs=document.getElementById('bg'), bgCtx=bgCvs.getContext('2d');
+const wLayer = document.getElementById('weather-layer');
+let W, H, t=0, rippleSpeed = 1;
+
+function resize(){ W=bgCvs.width=window.innerWidth; H=bgCvs.height=window.innerHeight; }
+window.addEventListener('resize', resize); resize();
+
+const PALETTES = {
+    dawn:  { sky: ['#232142','#3a3a5f','#565e75'], rv: ['#1e253c','#25334e','#0d1721'], gnd: ['#28352b','#1e2820','#101612'] },
+    day:   { sky: ['#175435','#28824f','#41ac66'], rv: ['#23656c','#2f8e99','#18434a'], gnd: ['#2a693c','#1b4a28','#0c2614'] },
+    dusk:  { sky: ['#5c3725','#92592d','#b57d42'], rv: ['#52361d','#825528','#381f08'], gnd: ['#44301d','#261b0d','#120d04'] },
+    night: { sky: ['#0a2612','#15502c','#1b6333'], rv: ['#184555','#1f586a','#102832'], gnd: ['#165023','#103015','#09160a'] }
+};
+
+const EnvSys = {
+    stateIdx: 0,
+    times: ['dawn', 'day', 'dusk', 'night'],
+    weaState: 'clear', // 'clear', 'rain'
+    currentAmbiID: 'AMB_01',
+    prevPal: JSON.parse(JSON.stringify(PALETTES.night)),
+    tgtPal: PALETTES.night,
+    curPal: JSON.parse(JSON.stringify(PALETTES.night)),
+    sceneProgressMs: 0,
+    SCENE_DUR: 180000, // 3 mins
+    FADE_DUR: 90000,   // 90 secs long crossfade
+
+    
+    update(deltaMs) {
+        this.sceneProgressMs += deltaMs;
+        
+        // Scene Crossfade
+        if(this.sceneProgressMs >= this.SCENE_DUR) {
+            this.nextScene();
+        } else if (this.sceneProgressMs >= this.SCENE_DUR - this.FADE_DUR) {
+            // Linear lerp over FADE_DUR
+            let prog = (this.sceneProgressMs - (this.SCENE_DUR - this.FADE_DUR)) / this.FADE_DUR;
+            if(prog > 1) prog = 1;
+            for(let k in this.curPal) {
+                for(let i=0; i<3; i++) {
+                    this.curPal[k][i] = this.lerpC(this.prevPal[k][i], this.tgtPal[k][i], prog);
+                }
+            }
+        } 
+        // Note: Rain interruption logic removed from here and moved to a smooth opacity fade below
+    },
+    nextScene() {
+        this.sceneProgressMs = 0;
+        this.stateIdx = (this.stateIdx + 1) % this.times.length;
+        const timeKey = this.times[this.stateIdx];
+        
+        this.prevPal = JSON.parse(JSON.stringify(this.curPal));
+        this.tgtPal = PALETTES[timeKey];
+        
+        // Weather lottery
+        let r = Math.random();
+        // 70% clear, 30% rain. No cloudy.
+        if (r < 0.70) {
+            this.weaState = 'clear';
+        } else {
+            this.weaState = 'rain';
+            // Rain naturally stops after a squall (20~40s)
+            setTimeout(() => this.stopRainWithLinger(), 20000 + Math.random()*20000);
+        }
+        
+        this.updateParticles();
+        
+        // Audio changes
+        const nextAmbi = this.getAmbientForState(timeKey, this.weaState);
+        if(nextAmbi !== this.currentAmbiID) {
+            this.currentAmbiID = nextAmbi;
+            AudioSys.switchAmbient(nextAmbi);
+        }
+        AudioSys.setWeatherFilter(this.weaState === 'rain');
+    },
+    getAmbientForState(time, wea) {
+        if(wea === 'rain') return 'AMB_05';
+        if(time === 'dawn' || time === 'day') return 'AMB_01';
+        if(time === 'dusk') return 'AMB_02';
+        return 'AMB_03'; // Night
+    },
+    stopRainWithLinger() {
+        if (this.weaState !== 'rain') return;
+        this.weaState = 'clear';
+        
+        // Fade rain visual & audio smoothly
+        let els = document.querySelectorAll('.raindrop');
+        els.forEach(el => el.style.transition = 'opacity 15s ease-out');
+        els.forEach(el => el.style.opacity = '0');
+        
+        AudioSys.setWeatherFilter(false);
+        setTimeout(() => {
+            AudioSys.switchAmbient(this.getAmbientForState(this.times[this.stateIdx], this.weaState));
+            this.updateParticles();
+        }, 12000); // Switch ambient when rain is almost visually gone
+    },
+    updateParticles() {
+        wLayer.innerHTML = '';
+        let count = this.weaState === 'rain' ? 120 : 25;
+        for(let i=0; i<count; i++){
+            let p = document.createElement('div');
+            if(this.weaState === 'rain') {
+                p.className = 'raindrop';
+                // Negative delay starts animation immediately instead of freezing
+                p.style.cssText = `left:${Math.random()*120 - 10}%; animation: rainFall ${0.5 + Math.random()*0.5}s linear infinite; animation-delay: -${Math.random()*2}s; opacity: ${0.4+Math.random()*0.4}; transition: opacity 2s ease;`;
+            } else {
+                p.className = 'particle';
+                let sz = 2+Math.random()*3;
+                p.style.cssText = `width:${sz}px; height:${sz}px; left:${Math.random()*100}%; bottom:${Math.random()*60}%; animation: drift linear infinite; animation-duration:${8+Math.random()*7}s; animation-delay:${Math.random()*5}s;`;
+            }
+            wLayer.appendChild(p);
+        }
+    },
+    // Utils
+    _h2r: h => h.match(/\w\w/g).map(x=>parseInt(x,16)),
+    _r2h: a => '#'+a.map(x=>Math.round(x).toString(16).padStart(2,'0')).join(''),
+    lerpC: function(a,b,r) { let ca=this._h2r(a), cb=this._h2r(b); return this._r2h(ca.map((v,i)=>v+(cb[i]-v)*r)); }
+};
+EnvSys.updateParticles();
+
+const trees=Array.from({length:18},()=>({ fx:Math.random(), baseY:0.35+Math.random()*0.15, cw:0.04+Math.random()*0.06, ch:0.18+Math.random()*0.2 }));
+
+let lastFrame = performance.now();
+function drawBg(ts){
+    let delta = ts - lastFrame; lastFrame = ts;
+    EnvSys.update(delta);
+
+    t += 0.001 * rippleSpeed;
+    bgCtx.clearRect(0,0,W,H);
+    
+    // Sky
+    const sky=bgCtx.createLinearGradient(0,0,0,H*0.52);
+    sky.addColorStop(0,EnvSys.curPal.sky[0]); sky.addColorStop(0.4,EnvSys.curPal.sky[1]); sky.addColorStop(1,EnvSys.curPal.sky[2]);
+    bgCtx.fillStyle = sky;
+    if(EnvSys.weaState==='cloudy') bgCtx.globalAlpha = 0.5;
+    bgCtx.fillRect(0,0,W,H*0.52);
+    bgCtx.globalAlpha = 1;
+
+    // Moutains
+    bgCtx.beginPath(); bgCtx.moveTo(0,H*0.48);
+    for(let x=0;x<=W;x+=6) bgCtx.lineTo(x,H*0.45+Math.sin((x/W)*Math.PI*2.5+t*0.1)*H*0.02);
+    bgCtx.lineTo(W,H*0.53); bgCtx.lineTo(0,H*0.53); bgCtx.closePath();
+    bgCtx.fillStyle = EnvSys.curPal.gnd[1]; bgCtx.fill();
+
+    // Ground
+    const gnd=bgCtx.createLinearGradient(0,H*0.5,0,H);
+    gnd.addColorStop(0,EnvSys.curPal.gnd[0]); gnd.addColorStop(0.5,EnvSys.curPal.gnd[1]); gnd.addColorStop(1,EnvSys.curPal.gnd[2]);
+    bgCtx.fillStyle=gnd; bgCtx.fillRect(0,H*0.5,W,H*0.5);
+    
+    // Grass right
+    const gl=bgCtx.createLinearGradient(W*0.4,0,W,0);
+    gl.addColorStop(0,'rgba(0,0,0,0)'); gl.addColorStop(0.3,'rgba(36,120,50,0.15)'); gl.addColorStop(1,'rgba(55,145,65,0.3)');
+    bgCtx.fillStyle=gl; bgCtx.fillRect(W*0.4,H*0.5,W*0.6,H*0.5);
+
+    // River
+    bgCtx.beginPath();
+    bgCtx.moveTo(0, H*0.46);
+    bgCtx.quadraticCurveTo(W*0.25, H*0.55, W*0.45, H);
+    bgCtx.lineTo(0, H);
+    bgCtx.closePath();
+    const rv=bgCtx.createLinearGradient(0,H*0.45,W*0.4,H);
+    rv.addColorStop(0,EnvSys.curPal.rv[0]); rv.addColorStop(0.5,EnvSys.curPal.rv[1]); rv.addColorStop(1,EnvSys.curPal.rv[2]);
+    bgCtx.fillStyle=rv; bgCtx.fill();
+
+    // Trees
+    trees.forEach(tr=>{
+        let tx=tr.fx*W,ty=tr.baseY*H,tw=tr.cw*W,th=tr.ch*H,sw=Math.sin(t*0.6+tr.fx*10)*4;
+        bgCtx.fillStyle='#080603'; bgCtx.fillRect(tx-tw*0.06,ty-th*0.1,tw*0.12,th*0.15);
+        let cg=bgCtx.createRadialGradient(tx+sw,ty-th*0.3,0,tx+sw,ty-th*0.3,tw*0.7);
+        cg.addColorStop(0, EnvSys.curPal.gnd[1]); cg.addColorStop(0.7, EnvSys.curPal.gnd[2]); cg.addColorStop(1,'transparent');
+        bgCtx.fillStyle=cg; bgCtx.beginPath(); bgCtx.ellipse(tx+sw,ty-th*0.3,tw*0.7,th*0.75,0,0,Math.PI*2); bgCtx.fill();
+    });
+
+    requestAnimationFrame(drawBg);
+}
+requestAnimationFrame(drawBg);
+
+/* Spring Canvas */
+const spCvs=document.getElementById('spring-canvas'), spCtx=spCvs.getContext('2d');
+let st = 0;
+function drawSpring(){
+    st += 0.001 * rippleSpeed;
+    const w2=spCvs.width, h2=spCvs.height;
+    spCtx.clearRect(0,0,w2,h2);
+    const g=spCtx.createRadialGradient(w2/2,h2/2,0,w2/2,h2/2,w2/2);
+    g.addColorStop(0,'rgba(95,230,195,0.7)'); g.addColorStop(0.5,'rgba(35,160,150,0.4)'); g.addColorStop(1,'rgba(10,65,75,0)');
+    spCtx.fillStyle=g; spCtx.beginPath(); spCtx.ellipse(w2/2,h2/2,w2/2,h2/2,0,0,Math.PI*2); spCtx.fill();
+    for(let r=0;r<4;r++){
+        const prog=(st*0.6+r*0.25)%1;
+        spCtx.save(); spCtx.globalAlpha=(1-prog)*0.45;
+        spCtx.beginPath(); spCtx.ellipse(w2/2,h2/2,w2/2*(0.1+prog*0.7),h2/2*(0.1+prog*0.7),0,0,Math.PI*2);
+        spCtx.strokeStyle='rgba(180,255,245,0.9)'; spCtx.lineWidth=2; spCtx.stroke(); spCtx.restore();
+    }
+    requestAnimationFrame(drawSpring);
+}
+requestAnimationFrame(drawSpring);
+
+
+/* ══════════════════════════════════════
+   2. CAPYBARA BEHAVIOR & MATRIX (V3.1)
+══════════════════════════════════════ */
+const capyWrap=document.getElementById('capy-wrap'), capyImg=document.getElementById('capy-img'),
+      bubbleEl=document.getElementById('bubble'), zzzEl=document.getElementById('zzz');
+
+const ASSETS = { main: 'assets/capybara_01_main.png', eat: 'assets/capybara_02_eat.png', sleep: 'assets/capybara_03_sleep.png', drink: 'assets/caoybara_04_drink.png', swim: 'assets/capybara_05_swim.png', react: 'assets/capybara_06_reaction.png', brother: 'assets/capybara_07_brother.png' };
+
+// P1~P6 Definitions. Spring (P4: x:50,y:24) is Forbidden for capy
+const MATRIX = [
+    { p: 'P1', left: 10, bottom: 20, actions: ['swim', 'react'] }, // River
+    { p: 'P2', left: 22, bottom: 26, actions: ['main', 'eat', 'sleep', 'drink', 'brother'] }, // Shore
+    { p: 'P3', left: 28, bottom: 33, actions: ['main', 'eat', 'sleep', 'brother'] }, // Far enough from spring
+    { p: 'P5', left: 74, bottom: 30, actions: ['main', 'eat', 'sleep', 'brother'] }, // Right safe zone
+    { p: 'P6', left: 86, bottom: 36, actions: ['main', 'eat', 'sleep', 'brother'] }, // Far Right Grass
+];
+
+let stateTimer = null;
+let currentLoc = null;
+let currentPose = null;
+let isInteracting = false;
+let isPresent = false;
+let hasBrotherAppeared = false;
+
+function setInteractCooldown() {
+    isInteracting = true;
+    document.body.classList.add('interacting');
+    setTimeout(() => {
+        isInteracting = false;
+        document.body.classList.remove('interacting');
+    }, 3000);
+}
+
+// Sub-scheduler for blinking
+setInterval(() => {
+    if(isPresent && !isInteracting && currentPose !== 'sleep' && currentPose !== 'brother') {
+        AudioSys.playSE('blink');
+    }
+}, 15000);
+
+function fadeOutCapy(callback) {
+    bubbleEl.classList.remove('visible');
+    capyWrap.classList.remove('visible');
+    isPresent = false;
+    AudioSys.stopSwimSE();
+    setTimeout(callback, 5000); // 5s fade
+}
+
+function spawnCapy(loc, pose) {
+    capyImg.src = ASSETS[pose];
+    capyWrap.style.left = loc.left + '%'; capyWrap.style.bottom = loc.bottom + '%';
+    
+    bubbleEl.classList.remove('visible');
+    
+    capyWrap.classList.toggle('swimming', pose === 'swim');
+    capyWrap.classList.toggle('on-land', loc.p !== 'P1' && pose !== 'swim');
+    capyWrap.classList.toggle('is-sleep', pose === 'sleep');
+    
+    // Dynamic ripple speed syncing
+    if(pose === 'sleep') rippleSpeed = 0.4;
+    else if(pose === 'swim') rippleSpeed = 1.8;
+    else rippleSpeed = 1.0;
+
+    capyWrap.classList.remove('quick-fade');
+    capyWrap.classList.add('visible');
+    currentLoc = loc; currentPose = pose;
+    isPresent = true;
+    
+    if(pose === 'swim') AudioSys.startSwimSE();
+    else AudioSys.stopSwimSE();
+    
+    // "Ma" space: wait 3s before adding text/zzz
+    setTimeout(() => {
+        if(!isPresent) return;
+        if(pose === 'sleep') {
+            showBubble('Zzz...', loc);
+        } else if(pose === 'eat') {
+            showBubble('むしゃむしゃ…', loc);
+        } else if(pose === 'drink') {
+            showBubble('ごくごく…', loc);
+        } else if(pose === 'swim') {
+            showBubble('ぷかぷか…', loc);
+        } else if(pose === 'main') {
+            const msgs = ['ん～……', 'ん～、いいねぇ…', '落ち着くねぇ…', 'なにしようかな…'];
+            if (EnvSys.weaState === 'rain') {
+                msgs.push('ん～、雨いいねえ…', '雨だ、いいねぇ…', '雨…好き…');
+                // Give higher priority to rain messages when it's raining
+                if (Math.random() < 0.6) {
+                    return showBubble(msgs[msgs.length - 1 - Math.floor(Math.random()*3)], loc);
+                }
+            }
+            showBubble(msgs[Math.floor(Math.random()*msgs.length)], loc);
+        }
+    }, 3000);
+}
+
+function showBubble(txt, loc) {
+    bubbleEl.textContent = txt;
+    bubbleEl.style.left = loc.left + '%'; bubbleEl.style.bottom = `calc(${loc.bottom}% + 130px)`;
+    bubbleEl.classList.add('visible');
+}
+
+function decideNextBehavior() {
+    clearTimeout(stateTimer);
+    if(isInteracting) { stateTimer = setTimeout(decideNextBehavior, 4000); return; }
+
+    // Natural Brother Spawn (90s in scene, 30% chance)
+    if(isPresent && EnvSys.sceneProgressMs > 90000 && !hasBrotherAppeared && Math.random() < 0.3) {
+        forceBrotherMode();
+        return;
+    }
+
+    // Complete exit sequence (1 min silence every ~4 mins)
+    if(isPresent && Math.random() < 0.15) {
+        // "Ma" - freeze 2s before fade
+        setTimeout(() => {
+            fadeOutCapy(() => {
+                stateTimer = setTimeout(decideNextBehavior, 60000); // 1 minute completely gone
+            });
+        }, 2000);
+        return;
+    }
+
+    if(isPresent && Math.random() < 0.6) {
+        // STAY: internal state transition
+        const acts = currentLoc.actions.filter(a => a!=='brother'&&a!=='react');
+        if(acts.length > 0) {
+            let nextA = acts[Math.floor(Math.random()*acts.length)];
+            // Apply weather context
+            if(EnvSys.weaState === 'rain' && Math.random() < 0.8) nextA = 'main'; // less sleep/eat in rain
+            
+            capyWrap.classList.add('quick-fade');
+            capyWrap.classList.remove('visible');
+            bubbleEl.classList.remove('visible');
+            setTimeout(() => {
+                spawnCapy(currentLoc, nextA);
+                stateTimer = setTimeout(decideNextBehavior, 60000 + Math.random()*60000);
+            }, 2000); // 2s smooth internal transition
+            return;
+        }
+    }
+
+    // ENTER / MOVE: 
+    let waitFade = isPresent ? 5000 : 0;
+    if(isPresent) fadeOutCapy(() => moveAndSpawn());
+    else setTimeout(() => moveAndSpawn(), 2000); // Wait 2s if empty before pop-in
+
+    function moveAndSpawn(){
+        let pool = MATRIX.filter(l => l.p !== 'P1' || EnvSys.weaState !== 'rain'); // no P1 in rain
+        // Increased P1 weight for more swimming
+        const weightedPool = ['P1','P1','P1','P2','P2','P2','P3','P3','P5','P5','P6','P6'];
+        let tgtLocID = weightedPool[Math.floor(Math.random()*weightedPool.length)];
+        let nLoc = pool.find(l => l.p === tgtLocID) || pool[0];
+        
+        const acts = nLoc.actions.filter(a => a!=='brother'&&a!=='react');
+        spawnCapy(nLoc, acts[Math.floor(Math.random()*acts.length)]);
+        
+        // 川(P1)に行った場合は少し早めに次の判断をする（居座りすぎ防止）
+        let waitTime = (nLoc.p === 'P1') ? (40000 + Math.random()*40000) : (60000 + Math.random()*120000);
+        stateTimer = setTimeout(decideNextBehavior, waitTime);
+    }
+}
+
+function forceBrotherMode() {
+    clearTimeout(stateTimer);
+    hasBrotherAppeared = true;
+    AudioSys.stopSwimSE();
+    
+    // Rule: Avoid water
+    if(currentLoc && currentLoc.p === 'P1') {
+        fadeOutCapy(() => {
+            let pool = MATRIX.filter(l => l.p !== 'P1');
+            const landMap = pool[Math.floor(Math.random()*pool.length)];
+            spawnCapy(landMap, 'brother');
+            AudioSys.playSE('brother');
+            showBubble('…よろしくね。', landMap);
+            stateTimer = setTimeout(decideNextBehavior, 50000);
+        });
+    } else {
+        // 即座に出現（2秒のフェードアウトを全カット）
+        capyImg.src = ASSETS.brother;
+        currentPose = 'brother';
+        capyWrap.classList.remove('is-sleep', 'swimming'); // Reset size/mask
+        AudioSys.playSE('brother');
+        showBubble('…よろしくね。', currentLoc);
+        stateTimer = setTimeout(decideNextBehavior, 60000);
+    }
+}
+
+// INTERACTIONS
+document.getElementById('debug-toggle').addEventListener('click', () => {
+    document.getElementById('debug-panel').classList.toggle('show');
+});
+setInterval(() => {
+    document.getElementById('dbg-st').innerText = `${currentLoc?.p || 'None'} / ${currentPose} (Wait)`;
+    document.getElementById('dbg-env').innerText = `${EnvSys.times[EnvSys.stateIdx]} / ${EnvSys.weaState}`;
+    document.getElementById('dbg-tm').innerText = Math.floor(EnvSys.sceneProgressMs / 1000);
+}, 1000);
+
+let tapTimes = [];
+document.getElementById('body-hitbox').addEventListener('click', (e) => {
+    e.stopPropagation();
+    if(currentPose === 'brother' || !isPresent) return;
+
+    let now = Date.now();
+    tapTimes.push(now);
+    // Keep only taps within last 1.2 seconds
+    tapTimes = tapTimes.filter(t => now - t < 1200);
+
+    if (tapTimes.length >= 3) {
+        // Triple click detected! Overrides reaction
+        tapTimes = [];
+        forceBrotherMode();
+    } else if (tapTimes.length === 1 && !isInteracting) {
+        // Normal reaction on first tap
+        triggerReaction();
+    }
+});
+
+// Snout hitbox logic removed to favor body triple-click
+document.getElementById('snout-hitbox').style.pointerEvents = 'none';
+
+function triggerReaction() {
+    clearTimeout(stateTimer);
+    setInteractCooldown();
+    AudioSys.playSE('open_eye');
+    
+    let prevPose = currentPose; // Remember state
+    let locMem = currentLoc;
+    capyImg.src = ASSETS.react;
+    capyWrap.classList.remove('is-sleep'); // cancel sleep scale
+    
+    const flash = document.getElementById('react-flash');
+    if(flash) {
+        flash.classList.remove('fire');
+        void flash.offsetWidth; // trigger reflow
+        flash.classList.add('fire');
+    }
+    
+    showBubble('…うん？', locMem);
+    
+    // 3 seconds "Ma" before returning to NORMAL behavior
+    setTimeout(() => {
+        if (currentPose !== 'brother') {
+            handleReactionFollowUp(prevPose, locMem);
+        } else {
+            bubbleEl.classList.remove('visible');
+            stateTimer = setTimeout(decideNextBehavior, 15000 + Math.random()*15000);
+        }
+    }, 3000);
+}
+
+let consecutiveStays = 0;
+function handleReactionFollowUp(prevPose, prevLoc) {
+    bubbleEl.classList.remove('visible');
+    
+    let r = Math.random() * 100;
+    // Normalized approx: 1. Stay/Same (50%), 2. Stay/Change (20%), 3. Move/Change (20%), 4. Move/Same (10%)
+    let choice = 0;
+    
+    if (consecutiveStays >= 4) {
+        r = 60 + Math.random()*40; // Force choices 2,3,4
+    }
+
+    if (r < 50) choice = 1;
+    else if (r < 70) choice = 2; // Stay, Change
+    else if (r < 90) choice = 3; // Move, Change
+    else choice = 4; // Move, Same
+    
+    let poolLocs = MATRIX.filter(l => (l.p !== 'P1' || EnvSys.weaState !== 'rain'));
+    let newLoc = prevLoc;
+    let newPose = prevPose;
+    
+    if (choice === 1) { // 1. Stay, same
+        consecutiveStays++;
+    } else if (choice === 2) { // 2. Stay, change
+        consecutiveStays++;
+        let validActs = prevLoc.actions.filter(a => a !== 'brother' && a !== 'react' && a !== prevPose);
+        if(validActs.length > 0) newPose = validActs[Math.floor(Math.random()*validActs.length)];
+    } else if (choice === 3) { // 3. Move, change
+        consecutiveStays = 0;
+        let diffLocs = poolLocs.filter(l => l.p !== prevLoc.p);
+        if(diffLocs.length > 0) newLoc = diffLocs[Math.floor(Math.random()*diffLocs.length)];
+        let validActs = newLoc.actions.filter(a => a !== 'brother' && a !== 'react' && a !== prevPose);
+        if(validActs.length === 0) validActs = newLoc.actions.filter(a => a !== 'brother' && a !== 'react');
+        newPose = validActs[Math.floor(Math.random()*validActs.length)];
+    } else if (choice === 4) { // 4. Move, same
+        consecutiveStays = 0;
+        let diffLocs = poolLocs.filter(l => l.p !== prevLoc.p);
+        let supports = diffLocs.filter(l => l.actions.includes(prevPose));
+        if(supports.length > 0) {
+            newLoc = supports[Math.floor(Math.random()*supports.length)];
+        } else {
+            // Cannot Move/Same. Fallback to Move/Change
+            if(diffLocs.length > 0) newLoc = diffLocs[Math.floor(Math.random()*diffLocs.length)];
+            let validActs = newLoc.actions.filter(a => a !== 'brother' && a !== 'react');
+            newPose = validActs[Math.floor(Math.random()*validActs.length)];
+        }
+    }
+
+    if(newLoc.p === prevLoc.p && newPose === prevPose) {
+        // Return to exact same immediately
+        capyImg.src = ASSETS[prevPose];
+        currentPose = prevPose;
+        capyWrap.classList.toggle('is-sleep', currentPose === 'sleep');
+        stateTimer = setTimeout(decideNextBehavior, 15000 + Math.random()*15000);
+    } else {
+        // Move or change requires fade
+        fadeOutCapy(() => {
+            spawnCapy(newLoc, newPose);
+            stateTimer = setTimeout(decideNextBehavior, 40000 + Math.random()*40000);
+        });
+    }
+}
+
+// Initial Delay
+setTimeout(() => decideNextBehavior(), 5000);
+
+/* ══════════════════════════════════════
+   3. FORM & COMMS (V3)
+══════════════════════════════════════ */
+const confessArea=document.getElementById('confess-area'), sendBtn=document.getElementById('send-btn'), springWrap=document.getElementById('spring-wrap');
+confessArea.addEventListener('input', ()=>{
+    const hasText = confessArea.value.trim().length > 0;
+    confessArea.classList.toggle('pulse-border', !hasText);
+    springWrap.classList.toggle('pulse-glow', !hasText);
+});
+
+const GENTLE=[ '人間さん…聞いてたよ…\n少し待っててね…', '人間くん、ここにきてくれてありがとう…\nお返事するからね…', 'ちゃんと、届いたよ…\nカピバラくんと、少し眠ろう…' ];
+const qOverlay=document.getElementById('quote-overlay'), qText=document.getElementById('quote-text'), qClose=document.getElementById('quote-close');
+
+const rn=document.getElementById('reply-notif'), rtb=document.getElementById('reply-text-box'), rc=document.getElementById('reply-notif-close');
+sendBtn.addEventListener('click', async () => {
+    const txt = confessArea.value.trim(); 
+    if(!txt) return;
+    sendBtn.disabled = true; 
+    confessArea.classList.add('float-away');
+    
+    // Ripple effect
+    const r = sendBtn.getBoundingClientRect(), el = document.createElement('div'); el.className = 'ripple-ring';
+    el.style.cssText = `width:60px;height:60px;left:${r.left+r.width/2-30}px;top:${r.top+r.height/2-30}px`;
+    document.body.appendChild(el); 
+    el.addEventListener('animationend', () => el.remove());
+    
+    try {
+        const name = document.getElementById('visitor-name').value.trim();
+
+        const resp = await fetch(`${API_BASE}/api/posts`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: txt, browserToken, visitorName: name || '旅人' })
+        });
+        
+        if (!resp.ok) throw new Error('Network response was not ok');
+
+        showBubble('…うん、聞いてたよ。', currentLoc || {left:25, bottom:30});
+
+        setTimeout(()=>{
+            confessArea.classList.remove('float-away'); 
+            confessArea.value=''; 
+            confessArea.dispatchEvent(new Event('input'));
+            sendBtn.disabled=false;
+            qText.textContent=GENTLE[Math.floor(Math.random()*GENTLE.length)];
+            qOverlay.classList.add('visible');
+        }, 1600);
+    } catch (err) {
+        console.error(err);
+        confessArea.classList.remove('float-away');
+        sendBtn.disabled = false;
+        showBubble('うまく水に流せなかったみたい…', currentLoc || {left:25, bottom:30});
+    }
+});
+
+qClose.addEventListener('click',()=>{
+    qOverlay.classList.remove('visible'); 
+    bubbleEl.classList.remove('visible');
+    if(!hasBrotherAppeared) {
+        setTimeout(() => forceBrotherMode(), 2000);
+    }
+});
+
+// Leaf Mailbox Logic
+let currentReplyData = null;
+let hasUnreadReply = false;
+
+function showLeafNotification(post) {
+  currentReplyData = post;
+  const mailbox = document.getElementById('leaf-mailbox');
+  mailbox.style.display = 'flex';
+
+  setTimeout(() => {
+    if (isPresent) showBubble('…なにか、届いてるよ。', currentLoc || {left:25, bottom:30});
+  }, 1500);
+}
+
+document.getElementById('leaf-mailbox').addEventListener('click', () => {
+    if (!currentReplyData) return;
+    const replyText = currentReplyData.human_reply || currentReplyData.ai_reply;
+    const replyFrom = currentReplyData.reply_from === 'host' ? '庵の主より' : 'カピバラより';
+    document.getElementById('leaf-reply-text').innerText = replyText;
+    document.getElementById('leaf-reply-from').textContent = replyFrom;
+    document.getElementById('leaf-modal').style.display = 'flex';
+    AudioSys.playSE('msg'); // V3 Sound
+});
+
+document.getElementById('leaf-close').addEventListener('click', () => {
+    document.getElementById('leaf-modal').style.display = 'none';
+    document.getElementById('leaf-mailbox').style.display = 'none';
+    hasUnreadReply = false;
+    currentReplyData = null;
+});
+
+// Reply Polling
+async function checkReplies() {
+    try {
+        const resp = await fetch(`${API_BASE}/api/posts/${browserToken}`);
+        if (!resp.ok) return;
+        const posts = await resp.json();
+        
+        const unread = posts.find(p => !p.is_read);
+        if (unread && !hasUnreadReply) {
+            hasUnreadReply = true;
+            showLeafNotification(unread);
+        }
+    } catch (err) {
+        console.error('返信確認エラー:', err);
+    }
+}
+
+// Check on load and then 5 min polling
+setTimeout(checkReplies, 3000);
+setInterval(checkReplies, 5 * 60 * 1000);
+
+</script>
+</body>
+</html>

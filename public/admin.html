@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>カピバラの庵 - 管理者ダッシュボード</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg:           #080f09;
+            --surface:      rgba(255,255,255,0.03);
+            --surface-hi:   rgba(255,255,255,0.06);
+            --border:       #1e2e1f;
+            --accent:       #3b5940;
+            --accent-hi:    #5a7d5b;
+            --text:         #dfdcd3;
+            --muted:        #7a9179;
+            --danger:       #7c3a3a;
+            --tag-off:      #141e15;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Noto Serif JP', serif;
+            min-height: 100dvh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ─── HEADER ─── */
+        header {
+            padding: 1.1rem 1rem 0.9rem;
+            border-bottom: 1px solid var(--border);
+            text-align: center;
+            position: sticky;
+            top: 0;
+            background: var(--bg);
+            z-index: 10;
+        }
+        header h1 { font-size: 1rem; font-weight: 500; letter-spacing: 0.15em; color: #a8c4a8; }
+        header small { font-size: 0.7rem; color: var(--muted); }
+
+        /* ─── NAV TABS ─── */
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid var(--border);
+        }
+        .tab-btn {
+            flex: 1;
+            padding: 0.75rem 0.5rem;
+            background: transparent;
+            border: none;
+            color: var(--muted);
+            font-family: 'Noto Serif JP', serif;
+            font-size: 0.85rem;
+            letter-spacing: 0.08em;
+            cursor: pointer;
+            transition: color 0.2s, background 0.2s;
+            border-bottom: 2px solid transparent;
+        }
+        .tab-btn.active {
+            color: #a8c4a8;
+            border-bottom-color: var(--accent-hi);
+            background: var(--surface);
+        }
+
+        /* ─── PANELS ─── */
+        .panel { display: none; flex: 1; flex-direction: column; }
+        .panel.active { display: flex; }
+
+        /* ─── INBOX ─── */
+        #inbox { overflow-y: auto; flex: 1; }
+        .post-card {
+            border-bottom: 1px solid var(--border);
+            padding: 1rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .post-card:hover, .post-card.selected { background: var(--surface-hi); }
+        .post-card .meta {
+            font-size: 0.72rem;
+            color: var(--muted);
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.4rem;
+        }
+        .post-card .excerpt {
+            font-size: 0.95rem;
+            line-height: 1.6;
+            overflow: hidden;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+        }
+        .score-badge {
+            font-size: 0.65rem;
+            background: rgba(60,120,60,0.2);
+            border: 1px solid rgba(80,160,80,0.3);
+            border-radius: 4px;
+            padding: 0.1rem 0.4rem;
+            color: #8fca8f;
+        }
+        .score-badge.high { background: rgba(120,40,40,0.25); border-color: rgba(180,60,60,0.3); color: #d07070; }
+        .empty-state {
+            text-align: center;
+            color: var(--muted);
+            font-size: 0.9rem;
+            padding: 3rem 1rem;
+            line-height: 2;
+        }
+
+        /* ─── REPLY PANEL ─── */
+        #reply-panel {
+            padding: 1rem;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            overflow-y: auto;
+        }
+        .user-msg-box {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1rem;
+        }
+        .user-msg-box h3 { font-size: 0.75rem; color: var(--muted); margin-bottom: 0.5rem; font-weight: 400; }
+        .user-msg-box p { font-size: 1rem; line-height: 1.7; }
+        .user-msg-box .msg-meta { font-size: 0.7rem; color: var(--muted); margin-top: 0.5rem; }
+        .user-msg-box .scores { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+
+        textarea.reply-editor {
+            flex: 1;
+            min-height: 180px;
+            background: transparent;
+            border: none;
+            border-top: 1px dashed var(--border);
+            color: var(--text);
+            font-family: 'Noto Serif JP', serif;
+            font-size: 1rem;
+            line-height: 1.8;
+            resize: none;
+            padding: 0.8rem 0;
+            outline: none;
+        }
+        textarea.reply-editor::placeholder { color: var(--muted); opacity: 0.5; }
+
+        .tags-row { display: flex; flex-wrap: wrap; gap: 0.5rem; padding: 0.4rem 0; }
+        .tag-btn {
+            background: var(--tag-off);
+            color: var(--muted);
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            padding: 0.45rem 1rem;
+            font-size: 0.8rem;
+            font-family: 'Noto Serif JP', serif;
+            cursor: pointer;
+            transition: all 0.25s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .tag-btn.active {
+            background: var(--accent-hi);
+            color: #fff;
+            border-color: #79a17a;
+            box-shadow: 0 0 10px rgba(90,125,91,0.3);
+        }
+        .action-row { display: flex; gap: 0.8rem; }
+        .save-btn {
+            flex: 1;
+            background: var(--accent);
+            color: #e8f5e9;
+            border: none;
+            border-radius: 10px;
+            padding: 0.9rem;
+            font-size: 1rem;
+            font-family: 'Noto Serif JP', serif;
+            letter-spacing: 0.1em;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
+        }
+        .save-btn:active { background: var(--accent-hi); transform: scale(0.97); }
+        .back-btn {
+            background: var(--surface);
+            color: var(--muted);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 0.9rem 1.2rem;
+            font-family: 'Noto Serif JP', serif;
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+
+        /* ─── TOAST ─── */
+        #toast {
+            position: fixed;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%) translateY(10px);
+            background: var(--accent-hi);
+            color: #fff;
+            padding: 0.7rem 1.5rem;
+            border-radius: 999px;
+            font-size: 0.9rem;
+            opacity: 0;
+            transition: opacity 0.3s, transform 0.3s;
+            pointer-events: none;
+            z-index: 99;
+        }
+        #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+        /* ─── STATS PANEL ─── */
+        #stats-panel { padding: 1rem; gap: 1rem; overflow-y: auto; }
+        .stat-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 0.8rem;
+        }
+        .stat-card h3 { font-size: 0.8rem; color: var(--muted); font-weight: 400; margin-bottom: 0.5rem; }
+        .stat-card .val { font-size: 2rem; font-weight: 700; color: #a8c4a8; }
+        .stat-card .sub { font-size: 0.75rem; color: var(--muted); margin-top: 0.2rem; }
+
+        .clear-btn {
+            background: var(--danger);
+            color: #ffcdd2;
+            border: none;
+            border-radius: 999px;
+            padding: 0.7rem 1.5rem;
+            font-family: 'Noto Serif JP', serif;
+            font-size: 0.85rem;
+            cursor: pointer;
+            margin-top: 1rem;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>庵の主・思索の窓</h1>
+    <small>管理者専用 — 魂の声が届く場所</small>
+</header>
+
+<div class="tabs">
+    <button class="tab-btn active" data-tab="inbox-panel">受信箱</button>
+    <button class="tab-btn" data-tab="stats-panel">統計</button>
+    <button class="tab-btn" data-tab="settings-panel">設定</button>
+</div>
+
+<!-- INBOX -->
+<div class="panel active" id="inbox-panel">
+    <div id="inbox"></div>
+</div>
+
+<!-- REPLY -->
+<div class="panel" id="reply-panel-wrap">
+    <div id="reply-panel">
+        <div class="user-msg-box" id="selected-msg-box">
+            <h3>受信メッセージ</h3>
+            <p id="selected-msg-text"></p>
+            <div class="msg-meta" id="selected-msg-meta"></div>
+            <div class="scores" id="selected-scores"></div>
+        </div>
+        <textarea class="reply-editor" id="reply-editor"
+            placeholder="カピバラの静寂な瞳で、紡ぐ言葉を……"></textarea>
+        <div class="action-row" style="align-items:center;">
+            <button class="back-btn" id="back-btn">← 戻る</button>
+            <button id="reply-from-toggle" data-current="capy"
+              style="background:rgba(40,80,45,0.4);color:#a8d8a8;border:1px solid rgba(100,180,100,0.3);
+                border-radius:999px;padding:0.6rem 1.2rem;font-family:'Noto Serif JP',serif;
+                font-size:0.85rem;cursor:pointer;letter-spacing:0.1em; flex:0.4;">
+              🌿 カピバラより
+            </button>
+            <button class="save-btn" id="save-reply-btn">魂へ言葉を流す</button>
+        </div>
+    </div>
+</div>
+
+<!-- STATS -->
+<div class="panel" id="stats-panel">
+    <div class="stat-card"><h3>総受信数</h3><div class="val" id="stat-total">0</div></div>
+    <div class="stat-card"><h3>未返信</h3><div class="val" id="stat-unreplied">0</div></div>
+</div>
+
+<!-- SETTINGS -->
+<div class="panel" id="settings-panel" style="padding:1rem; gap:1rem; overflow-y:auto;">
+    <div class="stat-card">
+        <h3>Slack通知設定</h3>
+        <label style="display:flex; align-items:center; gap:0.5rem; margin-top:0.8rem; cursor:pointer;">
+            <input type="checkbox" id="slack-toggle" style="transform:scale(1.2);">
+            <span>Slack通知を有効にする</span>
+        </label>
+        <div style="margin-top:1rem;">
+            <h3 style="margin-bottom:0.5rem;">Webhook URL</h3>
+            <input type="text" id="slack-webhook-url" placeholder="https://hooks.slack.com/services/..."
+                   style="width:100%; padding:0.8rem; background:rgba(0,0,0,0.2); border:1px solid var(--border); color:#fff; font-family:monospace; border-radius:6px; outline:none;">
+        </div>
+        <button id="save-slack-btn" style="margin-top:1rem; background:var(--accent); color:#fff; border:none; padding:0.6rem 1rem; border-radius:6px; cursor:pointer;">設定を保存</button>
+    </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+let posts = [];
+let selectedIdx = null;
+const API_BASE = 'https://capybara-hermitage.onrender.com';
+
+let ADMIN_PASSWORD = localStorage.getItem('capy_admin_pwd') || '';
+if (!ADMIN_PASSWORD) {
+  ADMIN_PASSWORD = prompt('管理パスワードを入力してください');
+  if(ADMIN_PASSWORD) localStorage.setItem('capy_admin_pwd', ADMIN_PASSWORD);
+}
+
+async function loadPosts() {
+    try {
+        const resp = await fetch(`${API_BASE}/api/admin/posts`, {
+            headers: { 'x-admin-password': ADMIN_PASSWORD }
+        });
+        if(!resp.ok) {
+            if(resp.status === 401) {
+                alert("パスワードが間違っています。");
+                localStorage.removeItem('capy_admin_pwd');
+                location.reload();
+            }
+            throw new Error("Failed to load");
+        }
+        posts = await resp.json();
+    } catch (e) {
+        console.error('投稿取得エラー:', e);
+        showToast('投稿の取得に失敗しました');
+    }
+}
+
+function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2400);
+}
+
+/* ─── TABS ─── */
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById(btn.dataset.tab).classList.add('active');
+        if (btn.dataset.tab === 'stats-panel') renderStats();
+    });
+});
+
+/* ─── INBOX RENDER ─── */
+function renderInbox() {
+    const inbox = document.getElementById('inbox');
+    if (posts.length === 0) {
+        inbox.innerHTML = `<div class="empty-state">まだ声は届いていない。<br>川は静かに、待っている。</div>`;
+        return;
+    }
+    inbox.innerHTML = posts.map((p, i) => {
+        const d = new Date(p.created_at);
+        const timeStr = d.toLocaleString('ja-JP', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+        const replied = p.human_reply ? '✓返信済' : '未返信';
+        return `
+        <div class="post-card" data-idx="${i}">
+            <div class="meta">
+                <span>${timeStr} — ${replied}</span>
+            </div>
+            <div class="excerpt">${escHtml(p.message)}</div>
+        </div>`;
+    }).join('');
+
+    document.querySelectorAll('.post-card').forEach(card => {
+        card.addEventListener('click', () => openReply(+card.dataset.idx));
+    });
+}
+
+function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+/* ─── OPEN REPLY ─── */
+function openReply(idx) {
+    selectedIdx = idx;
+    const p = posts[idx];
+
+    document.getElementById('selected-msg-text').textContent = p.message;
+    document.getElementById('selected-msg-meta').textContent =
+        new Date(p.created_at).toLocaleString('ja-JP') + '  受信';
+    const sc = document.getElementById('selected-scores');
+    sc.innerHTML = ``; // score removed in render spec
+
+    document.getElementById('reply-editor').value = p.human_reply || '';
+    
+    // reset reply toggle
+    const btn = document.getElementById('reply-from-toggle');
+    btn.dataset.current = 'capy';
+    btn.textContent = '🌿 カピバラより';
+    btn.style.background = 'rgba(40,80,45,0.4)';
+
+    // switch to reply view
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('reply-panel-wrap').classList.add('active');
+}
+
+/* ─── TAGS ─── */
+document.querySelectorAll('.tag-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        btn.classList.toggle('active');
+        const tag = btn.dataset.tag;
+        activeTags.has(tag) ? activeTags.delete(tag) : activeTags.add(tag);
+    });
+});
+
+/* ─── SAVE REPLY ─── */
+document.getElementById('reply-from-toggle').addEventListener('click', (e) => {
+    const btn = e.currentTarget;
+    if (btn.dataset.current === 'capy') {
+        btn.dataset.current = 'host';
+        btn.textContent = '🏯 庵の主より';
+        btn.style.background = 'rgba(60,40,20,0.4)';
+    } else {
+        btn.dataset.current = 'capy';
+        btn.textContent = '🌿 カピバラより';
+        btn.style.background = 'rgba(40,80,45,0.4)';
+    }
+});
+
+document.getElementById('save-reply-btn').addEventListener('click', async () => {
+    if (selectedIdx === null) return;
+    const text = document.getElementById('reply-editor').value.trim();
+    const replyFrom = document.getElementById('reply-from-toggle').dataset.current || 'capy';
+    
+    if (!text) { showToast('言葉が紡がれていません'); return; }
+    
+    const sendBtn = document.getElementById('save-reply-btn');
+    sendBtn.disabled = true;
+
+    try {
+        const postId = posts[selectedIdx].id;
+        await fetch(`${API_BASE}/api/admin/posts/${postId}/reply`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-admin-password': ADMIN_PASSWORD
+            },
+            body: JSON.stringify({ reply: text, replyFrom })
+        });
+        showToast(replyFrom === 'host' ? '庵の主より — 言葉を流しました' : 'カピバラより — 言葉を流しました');
+        await loadPosts();
+        goBack();
+    } catch (err) {
+        showToast('送信に失敗しました');
+    } finally {
+        sendBtn.disabled = false;
+    }
+});
+
+/* ─── BACK ─── */
+document.getElementById('back-btn').addEventListener('click', goBack);
+function goBack() {
+    selectedIdx = null;
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('inbox-panel').classList.add('active');
+    document.querySelector('[data-tab="inbox-panel"]').classList.add('active');
+}
+
+/* ─── STATS ─── */
+async function renderStats() {
+    await loadPosts();
+    document.getElementById('stat-total').textContent = posts.length;
+    document.getElementById('stat-unreplied').textContent = posts.filter(p => !p.human_reply).length;
+}
+
+document.getElementById('save-slack-btn').addEventListener('click', async () => {
+    const enabled = document.getElementById('slack-toggle').checked;
+    const webhookUrl = document.getElementById('slack-webhook-url').value.trim();
+    
+    document.getElementById('save-slack-btn').disabled = true;
+    try {
+        await fetch(`${API_BASE}/api/admin/settings/slack`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-admin-password': ADMIN_PASSWORD
+            },
+            body: JSON.stringify({ enabled, webhookUrl })
+        });
+        showToast(enabled ? 'Slack通知をオンにしました' : 'Slack通知をオフにしました');
+    } catch(e) {
+        showToast('設定の保存に失敗しました');
+    } finally {
+        document.getElementById('save-slack-btn').disabled = false;
+    }
+});
+
+/* ─── INIT ─── */
+loadPosts();
+setInterval(loadPosts, 30000);
+</script>
+</body>
+</html>
