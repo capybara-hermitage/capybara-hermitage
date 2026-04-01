@@ -8,7 +8,12 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const GROQ_MODEL = process.env.GROQ_MODEL || 'mixtral-8x7b-32768';
 
-app.use(cors());
+app.use(cors({
+  origin: 'https://capybara-hermitage.onrender.com',
+  methods: ['GET', 'POST', 'OPTIONS'],
+  credentials: true,
+  allowedHeaders: ['Content-Type', 'x-admin-password']
+}));
 app.use(express.json());
 
 // ─── DB接続 ───
